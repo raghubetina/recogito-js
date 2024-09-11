@@ -188,16 +188,15 @@ export default class TextAnnotator extends Component {
 
   /** Common handler for annotation CREATE or UPDATE **/
   onCreateOrUpdateAnnotation = method => (annotation, previous) => {
-    this.clearState();
+    const updatedAnnotation = annotation.clone();
+    this.highlighter.addOrUpdateAnnotation(updatedAnnotation, previous);
 
-    this.selectionHandler.clearSelection();
-    this.highlighter.addOrUpdateAnnotation(annotation, previous);
+    this.props[method](updatedAnnotation, previous ? previous.clone() : null);
 
-    // Call CREATE or UPDATE handler
-    if (previous)
-      this.props[method](annotation.clone(), previous.clone());
-    else
-      this.props[method](annotation.clone(), this.overrideAnnotationId(annotation));
+    this.setState({
+      selectedAnnotation: updatedAnnotation,
+      selectedDOMElement: this.highlighter.findAnnotationSpans(updatedAnnotation)[0]
+    });
   }
 
   onDeleteAnnotation = annotation => {
@@ -384,10 +383,10 @@ export default class TextAnnotator extends Component {
         { this.state.selectedAnnotation &&
           <Editor
             ref={this._editor}
-            autoPosition={this.props.config.editorAutoPosition}
-            wrapperEl={this.props.wrapperEl}
             annotation={this.state.selectedAnnotation}
             selectedElement={this.state.selectedDOMElement}
+            autoPosition={this.props.config.editorAutoPosition}
+            wrapperEl={this.props.wrapperEl}
             readOnly={readOnly}
             allowEmpty={this.props.config.allowEmpty}
             widgets={this.state.widgets}
@@ -398,7 +397,6 @@ export default class TextAnnotator extends Component {
             onAnnotationDeleted={this.onDeleteAnnotation}
             onCancel={this.onCancelAnnotation} />
         }
-
         { this.state.selectedRelation &&
           <RelationEditor
             relation={this.state.selectedRelation}
