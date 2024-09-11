@@ -33,32 +33,29 @@ export default class Editor extends Component {
     }
   }
 
-  componentWillReceiveProps(next) {
-    const { selectionBounds } = this.state;
-    const nextBounds = bounds(next.selectedElement);
-
-    if (!this.props.annotation?.isEqual(next.annotation)) {
-      this.setState({
-        currentAnnotation: next.annotation,
-        selectionBounds: nextBounds
-      });
-    } else {
-      this.setState({ selectionBounds: nextBounds });
+  componentDidUpdate(prevProps) {
+    if (prevProps.annotation !== this.props.annotation) {
+      this.setState({ currentAnnotation: this.props.annotation });
     }
 
-    if (this.props.modifiedTarget != next.modifiedTarget) {
+    const { selectionBounds } = this.state;
+    const nextBounds = bounds(this.props.selectedElement);
+
+    if (prevProps.modifiedTarget !== this.props.modifiedTarget) {
       // Update in case target was changed (move, resize)
       if (this.state.currentAnnotation)
         this.updateCurrentAnnotation({ target: this.props.modifiedTarget });
     }
 
     // Change editor position if element has moved
-    if (selectionBounds != nextBounds) {
+    if (selectionBounds !== nextBounds) {
       if (this.element.current) {
         this.removeObserver && this.removeObserver();
         this.removeObserver = this.initResizeObserver();
       }
     }
+
+    this.setState({ selectionBounds: nextBounds });
   }
 
   componentDidMount() {
@@ -281,34 +278,33 @@ export default class Editor extends Component {
     }
   }
 
-  onCancel = () =>
-    this.props.onCancel(this.props.annotation);
+  onCancel = () => {
+    const annotation = this.state.currentAnnotation || this.props.annotation;
+    this.props.onCancel(annotation);
+  }
 
   onOk = () => {
-    // Removes the state payload from all bodies
+    const { currentAnnotation } = this.state;
     const undraft = annotation =>
       annotation.clone({
         body : annotation.bodies.map(({ draft, ...rest }) => rest)
       });
 
-    const { currentAnnotation } = this.state;
-
-    // Current annotation is either a selection (if it was created from
-    // scratch just now) or an annotation (if it existed already and was
-    // selected for editing)
     if (currentAnnotation.bodies.length === 0 && !this.props.allowEmpty) {
       if (currentAnnotation.isSelection)
         this.onCancel();
       else
         this.props.onAnnotationDeleted(this.props.annotation);
     } else {
-      if (currentAnnotation.isSelection)
-        this.props.onAnnotationCreated(undraft(currentAnnotation).toAnnotation());
-      else
-        this.props.onAnnotationUpdated(undraft(currentAnnotation), this.props.annotation);
+      const updatedAnnotation = undraft(currentAnnotation);
+      this.setState({ currentAnnotation: updatedAnnotation }, () => {
+        if (updatedAnnotation.isSelection)
+          this.props.onAnnotationCreated(updatedAnnotation.toAnnotation());
+        else
+          this.props.onAnnotationUpdated(updatedAnnotation, this.props.annotation);
+      });
     }
   }
-
   onDelete = () =>
     this.props.onAnnotationDeleted(this.props.annotation);
 
@@ -396,4 +392,10 @@ export default class Editor extends Component {
 
   }
 
+}
+
+handleCancelSelected = annotation => {
+  if (annotation && annotation.underlying) {
+    this._emitter.emit('cancelSelected', annotation.underlying);
+  }
 }
